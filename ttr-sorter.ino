@@ -1,153 +1,101 @@
 /*
- * doser test
+ * Ticket to Ride: Rails and Sails Game Piece Sorter
+ * This code is part of my MECH 400 Capstone project.
  * Bryce Dombrowski
- * 2021-06-13
+ * 2021-07-13
  * 
  * Based on these references: 
  * - https://www.youtube.com/watch?v=KM-5PYfRlso&ab_channel=HowToElectronics
  * - Code: https://how2electronics.com/control-stepper-motor-with-a4988-driver-arduino/#Stepper_Motor_Acceleration_038_deceleration_Code
  * - adafruit rgb sensor library example code
+ * 
+ * 
+ * http://www.airspayce.com/mikem/arduino/AccelStepper/index.html
+ * https://www.pjrc.com/teensy/td_libs_AccelStepper.html
  */
-
 
 // 12V ~0.25A draw observed when alternating the stepper motors
 
+#include <AccelStepper.h>
+#include <cppQueue.h> // https://github.com/SMFSW/Queue
+#include "colour-detection.h"
 
-#include <Wire.h>
-#include "Adafruit_TCS34725.h"
+// Pins for the RGD LED
+#define PIN_LED_RED   5
+#define PIN_LED_GREEN 6
+#define PIN_LED_BLUE  9
 
-/* Example code for the Adafruit TCS34725 breakout library */
+#define PIN_COLOUR_INTERRUPT 7
 
-/* Connect SCL    to analog 5
-   Connect SDA    to analog 4
-   Connect VDD    to 3.3V DC
-   Connect GROUND to common ground */
+// Pins for the colour sensor dosing wheel stepper motor
+#define PIN_STEP_DOSER A0 //7
+#define PIN_DIR_DOSER A1 //8
+// Pins for the rotating chute stepper motor
+#define PIN_STEP_CHUTE A2 //14
+#define PIN_DIR_CHUTE A3 //15
 
-/* Initialise with default values (int time = 2.4ms, gain = 1x) */
-// Adafruit_TCS34725 tcs = Adafruit_TCS34725();
+#define STEPS_PER_REV 200 // Dictates the number of steps per revolution of the motor. Usually is 200.
 
-/* Initialise with specific int time and gain values */
-//Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_614MS, TCS34725_GAIN_1X);
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_60MS, TCS34725_GAIN_1X);
+volatile ColourEnum MAPPED_COLOUR;
+bool READY_FOR_NEXT_PIECE = true;
+AccelStepper doserStepper(AccelStepper::DRIVER, PIN_STEP_DOSER, PIN_DIR_DOSER);
+AccelStepper chuteStepper(AccelStepper::DRIVER, PIN_STEP_CHUTE, PIN_DIR_CHUTE);
 
-#define PIN_RED   5
-#define PIN_GREEN 6
-#define PIN_BLUE  9
-#define PIN_STEP_DOSER 7
-#define PIN_DIR_DOSER 8
-#define PIN_STEP_CHUTE 14
-#define PIN_DIR_CHUTE 15
-#define STEPS_PER_REV 200 // usually 200
+cppQueue PIECE_QUEUE (sizeof(ColourEnum), /*queue length = */4, FIFO); // Instantiate queue for the colour pieces in the scooper mechanism
 
-void setColourRGB (int r, int g, int b, int delayTime=0){ // r,g,b values should be in range 0-255
-  // Note: analogWrite() initiates a PWM signal to control the brightness of each colour, by modifying the average voltage. The pins used here must be PWM.
-  analogWrite(PIN_RED, r*4);
-  analogWrite(PIN_GREEN, g*4);
-  analogWrite(PIN_BLUE, b*4);
-  delay(delayTime);
-}
+void zeroMotors(){
+  // Locates the zero point of each stepper motor so that they are aligned for their task
+  // To do later
+  /*
 
-void pickColourFromRGBC(uint16_t r, uint16_t g, uint16_t b, uint16_t c, uint16_t colourTemp, uint16_t lux){
-  if (lux>50000){
-    setColourRGB(255,0,0); // Red
-    Serial.print("RED");
-  } else if (colourTemp>8000){
-    setColourRGB(0,0,255); // Blue
-    Serial.print("BLUE");
-  } else if (g<200){
-    setColourRGB(0,0,0); // Off
-    Serial.print("BLACK");
-  } else if (colourTemp>2900){
-    setColourRGB(0,255,0); // Green
-    Serial.print("GREEN");
-  } else {
-    setColourRGB(255,120,0); // Yellow
-    Serial.print("YELLOW");
-  }
-}
-
-void updateColour(){
-  uint16_t r, g, b, c, colorTemp, lux;
-
-  tcs.getRawData(&r, &g, &b, &c);
-  // colorTemp = tcs.calculateColorTemperature(r, g, b);
-  colorTemp = tcs.calculateColorTemperature_dn40(r, g, b, c);
-  lux = tcs.calculateLux(r, g, b);
-  pickColourFromRGBC(r,g,b,c, colorTemp,lux);
+   * // Zero the doser stepper motor
+   * doserStepper.setSpeed(float(STEPS_PER_REV/8)); // Steps per second (25)
+   * while(LIMIT_SWITCH_NOT_PRESSED (rising or falliong edge) ) {
+   *   doserStepper.runSpeed(); // Move at constant speed
+   * }
+   * const long doserOffset = 0L; // Offset from where the limit switch is triggered to where the zero point is
+   * doserStepper.move(long(doserOffset)); // Make a relative movement to get to zero position
+   * doserStepper.runToPosition(); // Blocks while the motor moves
+   * doserStepper.setCurrentPosition(0L); // Zero out the position
+   * 
+   * // Zero the chute stepper motor
+   * chuteStepper.setSpeed(float(STEPS_PER_REV/16)); // Steps per second (12.5)
+   * while(LIMIT_SWITCH_NOT_PRESSED (rising or falliong edge) ) {
+   *   chuteStepper.runSpeed(); // Move at constant speed
+   * }
+   * const long chuteOffset = 0L; // Offset from where the limit switch is triggered to where the zero point is
+   * chuteStepper.move(long(doserOffset)); // Make a relative movement to get to zero position
+   * chuteStepper.runToPosition(); // Blocks while the motor moves
+   * chuteStepper.setCurrentPosition(0L); // Zero out the position
+   */
 }
 
 void setup(void) {
   Serial.begin(9600);
-
-  if (tcs.begin()) {
-    Serial.println("Found sensor");
-  } else {
-    Serial.println("No TCS34725 found ... check your connections");
-    while (1);
-  }
-  pinMode(PIN_RED, OUTPUT);
-  pinMode(PIN_GREEN, OUTPUT);
-  pinMode(PIN_BLUE, OUTPUT);
+  
+  colourSensorSetup(PIN_COLOUR_INTERRUPT, PIN_LED_RED, PIN_LED_GREEN, PIN_LED_BLUE); // This function will block indefinitely if the colour sensor is not found.
   pinMode(PIN_DIR_DOSER, OUTPUT);
   pinMode(PIN_STEP_DOSER, OUTPUT);
   pinMode(PIN_DIR_CHUTE, OUTPUT);
   pinMode(PIN_STEP_CHUTE, OUTPUT);
-  // Now we're ready to get readings!
+  zeroMotors();
 }
 
 void loop(void) {
-  
-  // Set motor direction clockwise
-  digitalWrite(PIN_DIR_DOSER, LOW);
- 
-  // Spin motor slowly
-  for(int x = 0; x < STEPS_PER_REV/4; x++)
-  {
-    digitalWrite(PIN_STEP_DOSER, HIGH);
-    delayMicroseconds(1000);
-    digitalWrite(PIN_STEP_DOSER, LOW);
-    delayMicroseconds(1000);
-    //updateColour();
+
+  // Need to call these as often as possible. Each call results in at most one step.
+  if(!chuteStepper.run()){ // Move the chute
+    // Runs the following code if the chute is at the desired position
+
+    MAPPED_COLOUR = getColour();
+    if(!doserStepper.run()){
+    // Runs the following code if the doser is at the desired position
+      // LOGIC TO CHECK FOR IF PART HAS FALLEN THROUGH CHUTE
+      // PIECE_QUEUE.pop(&MAPPED_COLOUR);
+      PIECE_QUEUE.push(&MAPPED_COLOUR);
+      nextColour = PIECE_QUEUE.peek(); // ??????
+      chuteStepper.moveTo(chuteAngle[nextColour]);
+    }
   }
-  updateColour();
-  /*for(int x = 0; x < 10; x++){
-    updateColour();
-    delay(100);
-  }*/
-  digitalWrite(PIN_DIR_CHUTE, LOW);
-  for(int x = 0; x < STEPS_PER_REV/8; x++)
-  {
-    digitalWrite(PIN_STEP_CHUTE, HIGH);
-    delayMicroseconds(2000);
-    digitalWrite(PIN_STEP_CHUTE, LOW);
-    delayMicroseconds(2000);
-    //updateColour();
-  }
-  delay(200);
-  digitalWrite(PIN_DIR_CHUTE, HIGH);
-  for(int x = 0; x < STEPS_PER_REV/8; x++)
-  {
-    digitalWrite(PIN_STEP_CHUTE, HIGH);
-    delayMicroseconds(2000);
-    digitalWrite(PIN_STEP_CHUTE, LOW);
-    delayMicroseconds(2000);
-    //updateColour();
-  }
-  //delay(200); // Wait a second
-  /*
-  // Set motor direction counterclockwise
-  digitalWrite(PIN_DIR, HIGH);
- 
-  // Spin motor quickly
-  for(int x = 0; x < STEPS_PER_REV/4; x++)
-  {
-    digitalWrite(PIN_STEP, HIGH);
-    delayMicroseconds(1000);
-    digitalWrite(PIN_STEP, LOW);
-    delayMicroseconds(1000);
-    //updateColour();
-  }
-  updateColour();
-  delay(200); // Wait a second
-  */
+
 }
