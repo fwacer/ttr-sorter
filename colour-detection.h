@@ -23,26 +23,22 @@
 */
 // Global variables that are meant to be only used by this function. Pseudo-private.
 
-uint16_t _PIN_LED_RED;
-uint16_t _PIN_LED_GREEN;
-uint16_t _PIN_LED_BLUE;
+int _PIN_LED_RED;
+int _PIN_LED_GREEN;
+int _PIN_LED_BLUE;
 bool _ENABLE_RGB_LED = false;
 
 typedef enum {None, Red, Green, Blue, Yellow, Black} ColourEnum;
-ColourEnum _LAST_MEASURED_COLOUR = None;
 
 volatile boolean _COLOUR_SENSOR_READY = false;
+uint16_t RED_CHANNEL_RAW, GREEN_CHANNEL_RAW, BLUE_CHANNEL_RAW, CLEAR_CHANNEL_RAW;
+
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_60MS, TCS34725_GAIN_1X); // Take a 60ms measurement at 1x gain
 
 void isrColour()
 {
   _COLOUR_SENSOR_READY = true;
 }
-
-/* Initialise with default values (int time = 2.4ms, gain = 1x) */
-// Adafruit_TCS34725 tcs = Adafruit_TCS34725();
-/* Initialise with specific int time and gain values */
-//Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_614MS, TCS34725_GAIN_1X);
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_60MS, TCS34725_GAIN_1X); // Take a 60ms measurement at 1x gain
 
 void setColourRGB (int r, int g, int b, int delayTime=0){ // r,g,b values should be in range 0-255
   // This function causes the RGB LED to light up the specified colour.
@@ -55,8 +51,23 @@ void setColourRGB (int r, int g, int b, int delayTime=0){ // r,g,b values should
   delay(delayTime); // blocks for specified number of milliseconds
 }
 
-ColourEnum mapToColourFromRGBCReadings(uint16_t r, uint16_t g, uint16_t b, uint16_t c, uint16_t colourTemp, uint16_t lux){
-  // This function maps the measured readings into 5 discrete colours. The categorization criteria were selected from test results.
+ColourEnum getColour(){
+  // This function maps the stored measurements into 5 discrete colours. The categorization criteria were selected from test results.
+  // Returns the enum integer corresponding to the identified colour (from enum Colours defined at the top of this header file).
+  // Also updates the RGB LED with the current measured colour
+  // This function is more expensive to run than "updateColourRaw()", so does not run every "loop()", only when the piece colour is actively needed in the main program.
+  uint16_t colourTemp = tcs.calculateColorTemperature_dn40(
+    RED_CHANNEL_RAW,
+    GREEN_CHANNEL_RAW,
+    BLUE_CHANNEL_RAW,
+    CLEAR_CHANNEL_RAW
+    );
+  uint16_t lux = tcs.calculateLux(
+    RED_CHANNEL_RAW,
+    GREEN_CHANNEL_RAW,
+    BLUE_CHANNEL_RAW
+    );
+  
   if (lux>50000){
     setColourRGB(255,0,0); // Red
     Serial.print("RED");
@@ -65,7 +76,7 @@ ColourEnum mapToColourFromRGBCReadings(uint16_t r, uint16_t g, uint16_t b, uint1
     setColourRGB(0,0,255); // Blue
     Serial.print("BLUE");
     return Blue;
-  } else if (g<200){
+  } else if (GREEN_CHANNEL_RAW<200){
     setColourRGB(0,0,0); // Off
     Serial.print("BLACK");
     return Black;
@@ -82,34 +93,24 @@ ColourEnum mapToColourFromRGBCReadings(uint16_t r, uint16_t g, uint16_t b, uint1
 
 /* tcs.getRawData() does a delay(Integration_Time) after the sensor readout.
   We don't need to wait for the next integration cycle because we receive an interrupt when the integration cycle is complete*/
-void getRawData_noDelay(uint16_t *r, uint16_t *g, uint16_t *b, uint16_t *c)
-{
-  *c = tcs.read16(TCS34725_CDATAL);
-  *r = tcs.read16(TCS34725_RDATAL);
-  *g = tcs.read16(TCS34725_GDATAL);
-  *b = tcs.read16(TCS34725_BDATAL);
+void updateColourRaw(){
+  RED_CHANNEL_RAW = tcs.read16(TCS34725_RDATAL);
+  GREEN_CHANNEL_RAW = tcs.read16(TCS34725_GDATAL);
+  BLUE_CHANNEL_RAW = tcs.read16(TCS34725_BDATAL);
+  CLEAR_CHANNEL_RAW = tcs.read16(TCS34725_CDATAL);
+  _COLOUR_SENSOR_READY = false;
+  tcs.clearInterrupt();
 }
 
-ColourEnum getColour(){
-  // Returns the enum integer corresponding to the identified colour (from enum Colours defined at the top of this header file).
-  // Also updates the RGB LED with the current measured colour
-  if (_COLOUR_SENSOR_READY){
-    uint16_t r, g, b, c, colourTemp, lux;
-    
-    // Should consider using this following snippet to have non-blocking code instead https://forum.arduino.cc/t/solved-reading-from-tcs34725-slows-down-subsequent-functions/603544/10
-    getRawData_noDelay(&r, &g, &b, &c);
-    //tcs.getRawData(&r, &g, &b, &c);
-    // colourTemp = tcs.calculateColorTemperature(r, g, b);
-    colourTemp = tcs.calculateColorTemperature_dn40(r, g, b, c);
-    lux = tcs.calculateLux(r, g, b);
-    _LAST_MEASURED_COLOUR = mapToColourFromRGBCReadings(r,g,b,c, colourTemp,lux);
-    _COLOUR_SENSOR_READY = false;
-    tcs.clearInterrupt();
-  }
-  return _LAST_MEASURED_COLOUR;
+bool colourSensorReady(){
+  // Returns if the colour sensor has finished its latest measurement.
+  return _COLOUR_SENSOR_READY;
 }
+
 
 void colourSensorSetup(const int pinInterrupt, const int pinLedRed, const int pinLedGreen, const int pinLedBlue){
+  // Sets up the pins and interrupts for the colour sensor and for the RGB LED.
+  // This function will start an infinite loop if there are problems communicating with the colour sensor.
   _PIN_LED_RED = pinLedRed;
   _PIN_LED_GREEN = pinLedGreen;
   _PIN_LED_BLUE = pinLedBlue;
