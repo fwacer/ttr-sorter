@@ -33,7 +33,9 @@ typedef enum {None, Red, Green, Blue, Yellow, Black} ColourEnum;
 volatile boolean _COLOUR_SENSOR_READY = false;
 uint16_t RED_CHANNEL_RAW, GREEN_CHANNEL_RAW, BLUE_CHANNEL_RAW, CLEAR_CHANNEL_RAW;
 
+// See the following link for all the available parameters https://github.com/adafruit/Adafruit_TCS34725/blob/master/Adafruit_TCS34725.h
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_60MS, TCS34725_GAIN_1X); // Take a 60ms measurement at 1x gain
+//Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_614MS, TCS34725_GAIN_1X); // Take a 60ms measurement at 1x gain
 
 void isrColour()
 {
@@ -51,7 +53,7 @@ void setColourRGB (int r, int g, int b, int delayTime=0){ // r,g,b values should
   delay(delayTime); // blocks for specified number of milliseconds
 }
 
-ColourEnum getColour(){
+ColourEnum getColour(bool debugMode = false){
   // This function maps the stored measurements into 5 discrete colours. The categorization criteria were selected from test results.
   // Returns the enum integer corresponding to the identified colour (from enum Colours defined at the top of this header file).
   // Also updates the RGB LED with the current measured colour
@@ -67,6 +69,16 @@ ColourEnum getColour(){
     GREEN_CHANNEL_RAW,
     BLUE_CHANNEL_RAW
     );
+    
+  if (debugMode){
+    Serial.print("Color Temp: "); Serial.print(colourTemp, DEC); Serial.print(" K - ");
+    Serial.print("Lux: "); Serial.print(lux, DEC); Serial.print(" - ");
+    Serial.print("R: "); Serial.print(RED_CHANNEL_RAW, DEC); Serial.print(" ");
+    Serial.print("G: "); Serial.print(GREEN_CHANNEL_RAW, DEC); Serial.print(" ");
+    Serial.print("B: "); Serial.print(BLUE_CHANNEL_RAW, DEC); Serial.print(" ");
+    Serial.print("C: "); Serial.print(CLEAR_CHANNEL_RAW, DEC); Serial.print(" ");
+    Serial.println(" ");
+  }
   
   if (lux>50000){
     setColourRGB(255,0,0); // Red
