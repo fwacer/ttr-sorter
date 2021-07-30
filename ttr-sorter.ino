@@ -52,22 +52,24 @@ cppQueue PIECE_QUEUE (sizeof(ColourEnum), /*queue length = */3, FIFO); // Instan
 
 int getChuteAngle(ColourEnum pieceColour){
   // Returns the chute angle (in steps) for the given piece colour
+  // If facing the machine, the positive direction of rotation is clockwise. The datum is set at 45 degrees CCW from a line pointing from the chute to the ground. (AKA the 4:30 position of an analog clock).
+  const int quarterTurn = STEPS_PER_REV/4; // The full travel of the chute is one quarter turn (90 degrees).
   switch(pieceColour){
     case Red:
-      return STEPS_PER_REV/12/4 * 1; //50
+      return int(quarterTurn * 0.83); // 83% of a quarter turn
     break;
     case Green:
-      return STEPS_PER_REV/12 * 3/4; //35
+      return int(quarterTurn * 0.62); // 62% of a quarter turn
     break;
     case Blue:
-      return STEPS_PER_REV/12 * 2/4; //25
+      return int(quarterTurn * 0.42); // 42% of a quarter turn
     break;
     case Yellow:
-      return STEPS_PER_REV/12 * 1/4; //15;
+      return int(quarterTurn * 0.21); // 21% of a quarter turn
     break;
     case Black:
     default: // default case is black
-      return 0;
+      return 0; // 0 degrees
   }
 }
 
@@ -76,7 +78,7 @@ void zeroStepperMotors(bool zeroDoserStepper = true, bool zeroChuteStepper = tru
      
   if (zeroDoserStepper){
     // Zero the doser stepper motor
-    doserStepper.setPinsInverted(true);
+    doserStepper.setPinsInverted(true); // Set the direction pin to be inverted.
     doserStepper.setMaxSpeed(STEPS_PER_REV*8); // 20 steps per second.
     doserStepper.setAcceleration(STEPS_PER_REV*8); // X steps /s /s
     doserStepper.setSpeed(float(STEPS_PER_REV/16)); // Set the searching speed in steps per second (12.5)
@@ -84,7 +86,7 @@ void zeroStepperMotors(bool zeroDoserStepper = true, bool zeroChuteStepper = tru
      doserStepper.runSpeed(); // Move at constant searching speed.
     }
     const long doserOffset = 0L; // Offset from where the limit switch is triggered to where the zero point is.
-    doserStepper.move(long(doserOffset)); // Make a relative movement to get to zero position.
+    doserStepper.move(doserOffset); // Make a relative movement to get to zero position.
     
     doserStepper.runToPosition(); // Blocks while the motor moves.
     doserStepper.setCurrentPosition(0L); // Zero out the position.
@@ -93,12 +95,12 @@ void zeroStepperMotors(bool zeroDoserStepper = true, bool zeroChuteStepper = tru
     // Zero the chute stepper motor
     chuteStepper.setMaxSpeed(STEPS_PER_REV*8); // 20 steps per second.
     chuteStepper.setAcceleration(STEPS_PER_REV*8); // X steps /s /s
-    chuteStepper.setSpeed(float(STEPS_PER_REV/64)); // Set the searching speed in steps per second (12.5)
+    chuteStepper.setSpeed(-float(STEPS_PER_REV/100)); // Set the searching speed in steps per second (12.5). This is in the "negative" direction.
     while(digitalRead(PIN_LIMITSWITCH_CHUTE)==HIGH) {
      chuteStepper.runSpeed(); // Move at constant searching speed.
     }
     const long chuteOffset = 0L; // Offset from where the limit switch is triggered to where the zero point is.
-    chuteStepper.move(long(chuteOffset)); // Make a relative movement to get to zero position.
+    chuteStepper.move(chuteOffset); // Make a relative movement to get to zero position.
     
     chuteStepper.runToPosition(); // Blocks while the motor moves.
     chuteStepper.setCurrentPosition(0L); // Zero out the position.
@@ -121,6 +123,32 @@ void setup(void) {
   #ifdef MANUAL_FEED_MODE
     pinMode(PIN_MANUAL_FEED_BUTTON, INPUT_PULLUP);
   #endif
+
+/*
+  // Finding angles required
+  while(digitalRead(PIN_MANUAL_FEED_BUTTON)==HIGH){
+    chuteStepper.setSpeed(float(STEPS_PER_REV/100));
+    while(digitalRead(PIN_LIMITSWITCH_CHUTE)==HIGH){
+      chuteStepper.runSpeed();
+    }
+    Serial.println("Current position is "+String(chuteStepper.currentPosition()));
+    while(digitalRead(PIN_LIMITSWITCH_DOSER)==HIGH); // Wait
+    chuteStepper.runToNewPosition(0L);
+    delay(1000);
+  }*/
+  
+  /*
+   * // Test all the positions
+  chuteStepper.runToNewPosition(getChuteAngle(Red));
+  delay(1000);
+  chuteStepper.runToNewPosition(getChuteAngle(Black));
+  delay(1000);
+  chuteStepper.runToNewPosition(getChuteAngle(Green));
+  delay(1000);
+  chuteStepper.runToNewPosition(getChuteAngle(Blue));
+  delay(1000);
+  chuteStepper.runToNewPosition(getChuteAngle(Yellow));
+  delay(1000);*/
 }
 
 void loop(void) {
@@ -143,7 +171,7 @@ void loop(void) {
               // We will end up throwing out most of these readings, but it makes sure we capture the piece we want.
               updateColourRaw();
               getColour(true); // debug mode, print values
-          }
+            }
         }
       #endif
       doserStepper.move(STEPS_PER_REV/4); // Command the dosing wheel one quarter turn to drop the queued game piece.
@@ -157,7 +185,7 @@ void loop(void) {
     ColourEnum mappedColour = getColour(); 
     PIECE_QUEUE.push(&mappedColour);
     
-    if (PIECE_QUEUE.getCount()<3){ 
+    if (PIECE_QUEUE.getCount()<2){ 
       // Command the dosing wheel one quarter turn to queue another game piece.
       #ifdef MANUAL_FEED_MODE
         while(digitalRead(PIN_MANUAL_FEED_BUTTON)==HIGH){

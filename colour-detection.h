@@ -80,26 +80,26 @@ ColourEnum getColour(bool debugMode = false){
     Serial.println(" ");
   }
   
-  if (lux>50000){
+  if (lux>100 && RED_CHANNEL_RAW>150){
+    setColourRGB(255,120,0); // Yellow
+    Serial.print("YELLOW");
+    return Yellow;
+  } else if (colourTemp<4500){
     setColourRGB(255,0,0); // Red
     Serial.print("RED");
     return Red;
-  } else if (colourTemp>8000){
+  } else if (colourTemp>6000){
     setColourRGB(0,0,255); // Blue
     Serial.print("BLUE");
     return Blue;
-  } else if (GREEN_CHANNEL_RAW<200){
-    setColourRGB(0,0,0); // Off
-    Serial.print("BLACK");
-    return Black;
-  } else if (colourTemp>2900){
+  } else if (colourTemp>5100){
     setColourRGB(0,255,0); // Green
     Serial.print("GREEN");
     return Green;
   } else {
-    setColourRGB(255,120,0); // Yellow
-    Serial.print("YELLOW");
-    return Yellow;
+    setColourRGB(0,0,0); // Off
+    Serial.print("BLACK");
+    return Black;
   }
 }
 
