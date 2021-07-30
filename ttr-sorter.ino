@@ -157,6 +157,7 @@ void loop(void) {
   if ( colourSensorReady() ){
     // Make sure we always have the latest reading stored and ready for when we want to categorize a game piece.
     // We will end up throwing out most of these readings, but it makes sure we capture the piece we want.
+    // The colour sensor takes some time to make a measurement, so doing it this way means we get immediate access to the latest values whenever it is ready.
     updateColourRaw();
   }
   
@@ -170,10 +171,12 @@ void loop(void) {
               // Make sure we always have the latest reading stored and ready for when we want to categorize a game piece.
               // We will end up throwing out most of these readings, but it makes sure we capture the piece we want.
               updateColourRaw();
-              getColour(true); // debug mode, print values
+              getColour(true); // This updates the RGB LED. The argument "true" means the function will print debug mode values.
             }
         }
       #endif
+      // The dosing wheel is only allowed to move if the chute is at the correct position.
+      // This ensures the game piece falling out of the dosing wheel lands in the right bucket.
       doserStepper.move(STEPS_PER_REV/4); // Command the dosing wheel one quarter turn to drop the queued game piece.
     }
   }
@@ -185,28 +188,15 @@ void loop(void) {
     ColourEnum mappedColour = getColour(); 
     PIECE_QUEUE.push(&mappedColour);
     
-    if (PIECE_QUEUE.getCount()<2){ 
-      // Command the dosing wheel one quarter turn to queue another game piece.
-      #ifdef MANUAL_FEED_MODE
-        while(digitalRead(PIN_MANUAL_FEED_BUTTON)==HIGH){
-            if ( colourSensorReady() ){
-              // Make sure we always have the latest reading stored and ready for when we want to categorize a game piece.
-              // We will end up throwing out most of these readings, but it makes sure we capture the piece we want.
-              updateColourRaw();
-              getColour(true); // debug mode, print values
-          }
-        }
-      #endif
-      doserStepper.move(STEPS_PER_REV/4);
-    } else {
-      // Game piece at the end of the queue has now fallen out the bottom of the dosing mechanism, discard its info.
+    if (PIECE_QUEUE.getCount() >= 3){ 
+      // Game piece in the third position of the dosing wheel has now fallen out the bottom of the dosing mechanism, discard its info.
       ColourEnum temp;
       PIECE_QUEUE.pop(&temp); 
     }
 
     // Command the chute to the required position for the next game piece in the queue
     ColourEnum nextColour;
-    bool success = PIECE_QUEUE.peek(&nextColour); // ?????? not sure if PIECE_QUEUE.peek() does what I think it does
+    bool success = PIECE_QUEUE.peek(&nextColour); // ?????? not sure if PIECE_QUEUE.peek() does what I think it does. I am trying to look at the data at the end of the FIFO queue without modifiying it.
     if (success){
       chuteStepper.moveTo(getChuteAngle(nextColour)); // "moveTo()" sets the absolute destination, where "move()" sets the relative destination.
     }
