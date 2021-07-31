@@ -122,23 +122,9 @@ void setup(void) {
   zeroStepperMotors();
   #ifdef MANUAL_FEED_MODE
     pinMode(PIN_MANUAL_FEED_BUTTON, INPUT_PULLUP);
-  #endif
+  #endif  
 
-/*
-  // Finding angles required
-  while(digitalRead(PIN_MANUAL_FEED_BUTTON)==HIGH){
-    chuteStepper.setSpeed(float(STEPS_PER_REV/100));
-    while(digitalRead(PIN_LIMITSWITCH_CHUTE)==HIGH){
-      chuteStepper.runSpeed();
-    }
-    Serial.println("Current position is "+String(chuteStepper.currentPosition()));
-    while(digitalRead(PIN_LIMITSWITCH_DOSER)==HIGH); // Wait
-    chuteStepper.runToNewPosition(0L);
-    delay(1000);
-  }*/
-  
-  /*
-   * // Test all the positions
+  // Test all the positions
   chuteStepper.runToNewPosition(getChuteAngle(Red));
   delay(1000);
   chuteStepper.runToNewPosition(getChuteAngle(Black));
@@ -148,7 +134,13 @@ void setup(void) {
   chuteStepper.runToNewPosition(getChuteAngle(Blue));
   delay(1000);
   chuteStepper.runToNewPosition(getChuteAngle(Yellow));
-  delay(1000);*/
+  delay(1000);
+
+  // Flash RGB LED green twice to show we're ready
+  setColourRGB(0,255,0, /*delayTime=*/500);
+  setColourRGB(0,0,0, /*delayTime=*/500);
+  setColourRGB(0,255,0, /*delayTime=*/500);
+  setColourRGB(0,0,0);
 }
 
 void loop(void) {
@@ -160,29 +152,9 @@ void loop(void) {
     // The colour sensor takes some time to make a measurement, so doing it this way means we get immediate access to the latest values whenever it is ready.
     updateColourRaw();
   }
-  
-  // Need to call .run() as often as possible. Each call results in at most one step.
-  if(!chuteStepper.run()){ // Move the chute at most one step.
-    // Runs the following code if the chute is at the commanded position.
-    if(!doserStepper.isRunning()){
-      #ifdef MANUAL_FEED_MODE
-        while(digitalRead(PIN_MANUAL_FEED_BUTTON)==HIGH){
-            if ( colourSensorReady() ){
-              // Make sure we always have the latest reading stored and ready for when we want to categorize a game piece.
-              // We will end up throwing out most of these readings, but it makes sure we capture the piece we want.
-              updateColourRaw();
-              getColour(true); // This updates the RGB LED. The argument "true" means the function will print debug mode values.
-            }
-        }
-      #endif
-      // The dosing wheel is only allowed to move if the chute is at the correct position.
-      // This ensures the game piece falling out of the dosing wheel lands in the right bucket.
-      doserStepper.move(STEPS_PER_REV/4); // Command the dosing wheel one quarter turn to drop the queued game piece.
-    }
-  }
-  
-  if(!doserStepper.run()){ // Move the dosing wheel at most one step.
-    // Runs the following code if the doser is at the commanded position.
+
+  if(!doserStepper.run() && !chuteStepper.run()){ // Move each stepper motor at most one step according to the calculated acceleration and speed.
+    // Runs the following code if both stepper motors are at their commanded positions.
 
     // Store the colour of the next game piece in the FIFO queue.
     ColourEnum mappedColour = getColour(); 
@@ -200,6 +172,17 @@ void loop(void) {
     if (success){
       chuteStepper.moveTo(getChuteAngle(nextColour)); // "moveTo()" sets the absolute destination, where "move()" sets the relative destination.
     }
-  }
+    doserStepper.move(STEPS_PER_REV/4); // Command the dosing wheel one quarter turn to drop the next queued game piece.
 
+    #ifdef MANUAL_FEED_MODE
+      while(digitalRead(PIN_MANUAL_FEED_BUTTON)==HIGH){
+          if ( colourSensorReady() ){
+            // Make sure we always have the latest reading stored and ready for when we want to categorize a game piece.
+            // We will end up throwing out most of these readings, but it makes sure we capture the piece we want.
+            updateColourRaw();
+            getColour(true); // This updates the RGB LED. The argument "true" means the function will print debug mode values.
+          }
+      }
+    #endif
+  }
 }
