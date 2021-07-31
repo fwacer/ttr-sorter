@@ -4,15 +4,6 @@
  * Bryce Dombrowski
  * 2021-07-13
  * 
- * Based on these references: 
- * - https://www.youtube.com/watch?v=KM-5PYfRlso&ab_channel=HowToElectronics
- * - Code: https://how2electronics.com/control-stepper-motor-with-a4988-driver-arduino/#Stepper_Motor_Acceleration_038_deceleration_Code
- * - adafruit rgb sensor library example code
- * 
- * 
- * http://www.airspayce.com/mikem/arduino/AccelStepper/index.html
- * https://www.pjrc.com/teensy/td_libs_AccelStepper.html
- * 
  * Notes:
  *   12V ~0.25A draw observed when alternating the stepper motors
  *   Vref set to 0.72V according to the fomrula Vref = 2.5*I
