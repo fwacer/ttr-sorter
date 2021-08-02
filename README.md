@@ -2,7 +2,7 @@
 Ticket to Ride: Rails and Sails Automatic Game Piece Sorter
 
 This code is the brains behind my mechanical engineering capstone project.
-See a demo video: https://www.youtube.com/watch?v=YA0yfKsgC48&ab_channel=Fwacer
+See a demo video: https://www.youtube.com/watch?v=YA0yfKsgC48
 
 The following libraries were used, downloaded through the Arduino IDE Library Manager:
 * Adafruit TCS34725
